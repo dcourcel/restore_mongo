@@ -38,7 +38,9 @@ if [ -n "$1" ]; then
 
     DB_NAME="$1"
     MONGO_HOST="$2"
-    ARCHIVE_NAME="$3"
+    BACKUP_FOLDER="$3"
+    ARCHIVE_NAME="$4"
+    DATE_DIR_FILE="$5"
 else
     if [ -n "$DROP" ]; then
         DROP=--drop
@@ -55,9 +57,33 @@ if [ -z "$MONGO_HOST" ]; then
     echo 'Error. No host specified.'
     ERR=1
 fi
-if [ ! -e "$ARCHIVE_NAME" ]; then
-    echo 'Error. No archive name specified or the file doesn'\''t exist.'
+if [ -z "$BACKUP_FOLDER" ]; then
+    echo '$BACKUP_FOLDER' is not defined
     ERR=1
+fi;
+if [ -n "$DATE_DIR_FILE" ]; then
+    if [ ! -f "$DATE_DIR_FILE" ]; then
+        echo "\$DATE_DIR_FILE ($DATE_DIR_FILE) is not a file."
+        ERR=1
+    fi
+    date_dir=$(head -n 1 $DATE_DIR_FILE)
+    if [ -z "$date_dir" ]; then
+        echo "The file $DATE_DIR_FILE is empty."
+        ERR=1
+    fi
+else
+    echo "\$DATE_DIR_FILE is not defined."
+    ERR=1
+fi;
+BACKUP_FILE=/media/backup/$BACKUP_FOLDER/$date_dir/$ARCHIVE_NAME
+if [ $ERR -eq 0 ]; then
+    if [ -z "$ARCHIVE_NAME" ]; then
+        echo "\$ARCHIVE_NAME is empty."
+        ERR=1
+    elif [ ! -f "$BACKUP_FILE" ]; then
+        echo "The file $BACKUP_FILE doesn't exist."
+        ERR=1
+    fi
 fi
 
 if [ $ERR = 1 ]; then
@@ -68,11 +94,8 @@ fi;
 echo '----------------------------------------'
 echo 'Begin Mongo restoration.'
 
-# Create directory if it doesn't exist.
-mkdir -p /media/backup/$BACKUP_FOLDER &&
-# Backup the databases specified
-BACKUP_FILE=/media/backup/$BACKUP_FOLDER/${ARCHIVE_NAME}_$(date +%Y-%m-%d_%H-%M-%S).bson.bz2 &&
-bzip2 -cd $ARCHIVE_NAME | mongorestore $DROP --host=$MONGO_HOST --db=$DB_NAME --archive &
+# Restore the databases specified
+bzip2 -cd $BACKUP_FILE | mongorestore $DROP --host=$MONGO_HOST --db=$DB_NAME --archive &
 # The restore function is started in background and we wait for its completion. This allow the script to treat a signal
 # immediatly instead of waiting for the end of the command.
 wait $!
@@ -80,8 +103,8 @@ wait $!
 ERR_CODE="$?"
 if [ $ERR_CODE -eq 0 ]; then
     if [ -n "$DELETE_ARCHIVE" ]; then
-        echo "Delete file $ARCHIVE_NAME"
-        rm -f "$ARCHIVE_NAME"
+        echo "Delete file $BACKUP_FILE"
+        rm -f "$BACKUP_FILE"
     fi
     echo 'Mongo restoration completed.'
 else
