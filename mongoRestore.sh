@@ -20,18 +20,22 @@ if [ -n "$1" ]; then
     DELETE_ARCHIVE=""
     while [ $# -gt 0 -a "${1::2}" = "--" ]; do
         case $1 in
-            --drop)
-            DROP=--drop
-            ;;
+            "--drop")
+                DROP=--drop
+                ;;
 
-            --delete-archive)
-            DELETE_ARCHIVE=yes
-            ;;
+            "--delete-archive")
+                DELETE_ARCHIVE=yes
+                ;;
+            
+            "--error-no-backup-file")
+                NO_BACKUP=yes
+                ;;
 
             *)
-            echo "Invalid option $1"
-            exit 2
-            ;;
+                echo "Invalid option $1"
+                exit 2
+                ;;
         esac
         shift
     done
@@ -40,7 +44,6 @@ if [ -n "$1" ]; then
     MONGO_HOST="$2"
     BACKUP_FOLDER="$3"
     ARCHIVE_NAME="$4"
-    DATE_DIR_FILE="$5"
 else
     if [ -n "$DROP" ]; then
         DROP=--drop
@@ -61,34 +64,24 @@ if [ -z "$BACKUP_FOLDER" ]; then
     echo '$BACKUP_FOLDER' is not defined
     ERR=1
 fi;
-if [ -n "$DATE_DIR_FILE" ]; then
-    if [ ! -f "$DATE_DIR_FILE" ]; then
-        echo "\$DATE_DIR_FILE ($DATE_DIR_FILE) is not a file."
-        ERR=1
-    fi
-    date_dir=$(head -n 1 $DATE_DIR_FILE)
-    if [ -z "$date_dir" ]; then
-        echo "The file $DATE_DIR_FILE is empty."
-        ERR=1
-    fi
-else
-    echo "\$DATE_DIR_FILE is not defined."
-    ERR=1
-fi;
-BACKUP_FILE=/media/backup/$BACKUP_FOLDER/$date_dir/$ARCHIVE_NAME
-if [ $ERR -eq 0 ]; then
-    if [ -z "$ARCHIVE_NAME" ]; then
-        echo "\$ARCHIVE_NAME is empty."
-        ERR=1
-    elif [ ! -f "$BACKUP_FILE" ]; then
-        echo "The file $BACKUP_FILE doesn't exist."
-        ERR=1
-    fi
-fi
 
 if [ $ERR = 1 ]; then
      exit 1
 fi;
+
+BACKUP_FILE="/media/backup/$BACKUP_FOLDER/$ARCHIVE_NAME"
+if [ -z "$ARCHIVE_NAME" ]; then
+    echo "\$ARCHIVE_NAME is empty."
+    exit 1
+elif [ ! -f "$BACKUP_FILE" ]; then
+    if [ -n "$NO_BACKUP" ]; then
+        echo "The file $BACKUP_FILE doesn't exist."
+        exit 1
+    else
+        echo "No need to restore since there is no archive at $BACKUP_FILE."
+        exit 0
+    fi
+fi
 
 
 echo '----------------------------------------'
